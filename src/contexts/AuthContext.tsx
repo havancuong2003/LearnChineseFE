@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await axios.post('/api/auth/login', { username, password });
+      const response = await axios.post('https://learnchinesebe.onrender.com/api/auth/login', { username, password });
       const { token: newToken, user: userData } = response.data;
       setToken(newToken);
       setUser(userData);
