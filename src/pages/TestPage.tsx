@@ -1,26 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../utils/api';
-import { useAuth } from '../contexts/AuthContext';
 import TestModeSelector from '../components/test/TestModeSelector';
 import ChallengeMode from '../components/test/ChallengeMode';
 import TimeAttackMode from '../components/test/TimeAttackMode';
 import RandomReadingTest from '../components/test/RandomReadingTest';
+import ReadingQuestionContent from '../components/test/ReadingQuestionContent';
 import { generateTest, gradeTest } from '../utils/testGenerator';
-
-interface Vocab {
-  _id: string;
-  zh: string;
-  pinyin: string;
-  vi: string;
-}
-
-interface Sentence {
-  _id: string;
-  zh: string;
-  vi: string;
-  options?: string[];
-}
 
 interface ReadingQuestion {
   _id: string;
@@ -44,6 +30,8 @@ interface Question {
   pinyin?: string;
   options?: string[];
   correctAnswer: string;
+  questionContent?: string | { zh: string; vi: string }; // For reading questions
+  questionType?: 'mcq' | 'fill' | 'translate'; // For reading questions
 }
 
 interface TestResult {
@@ -67,7 +55,6 @@ interface TestResult {
 }
 
 const TestPage = () => {
-  const { user } = useAuth();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -82,29 +69,19 @@ const TestPage = () => {
   const { data: vocabs } = useQuery({
     queryKey: ['vocabs'],
     queryFn: async () => {
-      const response = await api.get('/vocabs');
-      return response.data as Vocab[];
+      const response = await api.get('/vocabs?limit=10000');
+      // Handle both { vocabs: [] } and [] formats
+      return Array.isArray(response.data) ? response.data : (response.data.vocabs || []);
     },
   });
 
   const { data: sentences } = useQuery({
     queryKey: ['sentences'],
     queryFn: async () => {
-      // Get all sentences from all lessons
-      const response = await api.get('/lessons');
-      const lessons = response.data;
-      const allSentences: Sentence[] = [];
-      
-      for (const lesson of lessons) {
-        try {
-          const lessonResponse = await api.get(`/lessons/${lesson._id}`);
-          allSentences.push(...(lessonResponse.data.sentences || []));
-        } catch (error) {
-          console.error(`Error loading sentences for lesson ${lesson._id}:`, error);
-        }
-      }
-      
-      return allSentences;
+      // Load all sentences from /sentences endpoint (NO /lessons API call)
+      const response = await api.get('/sentences?limit=10000');
+      // Handle both { sentences: [] } and [] formats
+      return Array.isArray(response.data) ? response.data : (response.data.sentences || []);
     },
   });
 
@@ -114,16 +91,29 @@ const TestPage = () => {
       const unitsResponse = await api.get('/reading-units');
       const units = unitsResponse.data as ReadingUnit[];
       const allQuestions: ReadingQuestion[] = [];
-      
+
       for (const unit of units) {
         try {
           const questionsResponse = await api.get(`/reading-units/${unit._id}/questions?count=100`);
-          allQuestions.push(...questionsResponse.data);
+          const questions = questionsResponse.data;
+          
+          // Populate unitId với unit data (zh_paragraph, vi_paragraph)
+          const questionsWithUnit = questions.map((q: any) => ({
+            ...q,
+            unitId: {
+              _id: unit._id,
+              zh_paragraph: unit.zh_paragraph,
+              vi_paragraph: unit.vi_paragraph,
+              unit_title: unit.unit_title,
+            }
+          }));
+          
+          allQuestions.push(...questionsWithUnit);
         } catch (error) {
           console.error(`Error loading questions for unit ${unit._id}:`, error);
         }
       }
-      
+
       return allQuestions;
     },
   });
@@ -190,10 +180,6 @@ const TestPage = () => {
     setRandomReadingQuestions([]);
   };
 
-  const handleStart = (count: number = 50) => {
-    handleModeSelect('classic-exam', count, 20 * 60);
-  };
-
   const handleAnswer = (questionId: string, answer: string) => {
     setAnswers({ ...answers, [questionId]: answer });
   };
@@ -242,25 +228,8 @@ const TestPage = () => {
 
   if (!started && !result) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">Bài Kiểm Tra</h2>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <p className="mb-4">Chọn số câu hỏi:</p>
-          <div className="flex gap-4">
-            <button
-              onClick={() => handleStart(10)}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-            >
-              Quick Test (10 câu)
-            </button>
-            <button
-              onClick={() => handleStart(50)}
-              className="px-6 py-3 bg-success text-white rounded-lg hover:bg-green-600"
-            >
-              Classic Exam (50 câu)
-            </button>
-          </div>
-        </div>
+      <div>
+        <TestModeSelector selectedMode={selectedMode} onModeSelect={handleModeSelect} />
       </div>
     );
   }
@@ -348,6 +317,9 @@ const TestPage = () => {
               setResult(null);
               setQuestions([]);
               setAnswers({});
+              setSelectedMode(null);
+              setRandomReadingUnit(null);
+              setRandomReadingQuestions([]);
             }}
             className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
@@ -358,25 +330,154 @@ const TestPage = () => {
     );
   }
 
+  const handleBack = () => {
+    if (window.confirm('Bạn có chắc muốn quay lại? Tiến trình hiện tại sẽ bị mất.')) {
+      setStarted(false);
+      setResult(null);
+      setQuestions([]);
+      setAnswers({});
+      setSelectedMode(null);
+      setRandomReadingUnit(null);
+      setRandomReadingQuestions([]);
+      setCurrentIndex(0);
+    }
+  };
+
+  // Handle special modes
+  if (selectedMode === 'challenge-mode' && started && !result) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <ChallengeMode
+          questions={questions}
+          onAnswer={handleAnswer}
+          onBack={handleBack}
+          onComplete={(result) => {
+            // Convert challenge result to test result format
+            const gradedResult = gradeTest(questions, answers);
+            setResult({
+              ...gradedResult,
+              score: Math.round((result.correct / result.total) * 100),
+              correct: result.correct,
+              incorrect: result.incorrect,
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (selectedMode === 'time-attack' && started && !result) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <TimeAttackMode
+          questions={questions}
+          onAnswer={handleAnswer}
+          onBack={handleBack}
+          onComplete={(result) => {
+            const gradedResult = gradeTest(questions, answers);
+            setResult({
+              ...gradedResult,
+              score: Math.round((result.correct / result.total) * 100),
+              correct: result.correct,
+              incorrect: result.incorrect,
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (selectedMode === 'random-reading' && started && randomReadingUnit && randomReadingQuestions.length > 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <RandomReadingTest
+          unit={randomReadingUnit}
+          questions={randomReadingQuestions.map(q => ({
+            _id: q._id,
+            question: q.question,
+            options: q.options,
+            question_type: q.question_type,
+            correctAnswer: typeof q.answer === 'object' ? q.answer.text : q.answer || '',
+          }))}
+          onBack={handleBack}
+          onComplete={(result) => {
+            const breakdown = {
+              vocab: { total: 0, correct: 0 },
+              sentence: { total: 0, correct: 0 },
+              reading: { total: result.total, correct: result.correct },
+            };
+            setResult({
+              score: result.score,
+              total: result.total,
+              correct: result.correct,
+              incorrect: result.incorrect,
+              breakdown,
+              results: [],
+            });
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Default classic exam / quick test mode
   const currentQuestion = questions[currentIndex];
   const currentAnswer = answers[currentQuestion?.id || ''] || '';
+
+  if (!currentQuestion) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 text-center">
+        <p>Đang tải câu hỏi...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+        <div className="mb-4">
+          <button
+            onClick={handleBack}
+            className="text-blue-500 hover:text-blue-600 text-sm mb-2"
+          >
+            ← Quay lại
+          </button>
+        </div>
         <div className="flex justify-between items-center mb-4">
           <div>
             Câu {currentIndex + 1} / {questions.length}
           </div>
-          <div className="text-xl font-bold text-warning">{formatTime(timeRemaining)}</div>
+          {(selectedMode === 'classic-exam' || selectedMode === 'quick-test') && (
+            <div className="text-xl font-bold text-warning">{formatTime(timeRemaining)}</div>
+          )}
         </div>
 
         <div className="mb-4">
           <div className="text-sm text-gray-500 mb-2">
             Loại: {currentQuestion?.type === 'vocab' ? 'Từ vựng' : currentQuestion?.type === 'sentence' ? 'Bài khóa' : 'Đọc hiểu'}
           </div>
-          <div className="text-xl font-semibold mb-4">{currentQuestion?.question}</div>
-          {currentQuestion?.pinyin && (
+          
+          {/* Hiển thị questionContent cho reading questions */}
+          {currentQuestion?.type === 'reading' && currentQuestion?.questionContent && (
+            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              {currentQuestion.questionType === 'mcq' && typeof currentQuestion.questionContent === 'object' ? (
+                <ReadingQuestionContent 
+                  zh={currentQuestion.questionContent.zh} 
+                  vi={currentQuestion.questionContent.vi} 
+                />
+              ) : typeof currentQuestion.questionContent === 'string' ? (
+                <div className="text-lg leading-relaxed">{currentQuestion.questionContent}</div>
+              ) : null}
+            </div>
+          )}
+          
+          {/* Hiển thị question text (cho các loại khác hoặc reading không có questionContent) */}
+          {(!currentQuestion?.questionContent || currentQuestion?.type !== 'reading') && (
+            <div className="text-xl font-semibold mb-4">{currentQuestion?.question}</div>
+          )}
+          
+          {/* Chỉ hiển thị pinyin khi có options (multiple choice), không hiển thị khi nhập tiếng Trung */}
+          {currentQuestion?.pinyin && currentQuestion?.options && currentQuestion.options.length > 0 && (
             <div className="text-gray-600 dark:text-gray-400 mb-2">Pinyin: {currentQuestion.pinyin}</div>
           )}
 
@@ -425,10 +526,9 @@ const TestPage = () => {
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={submitTestMutation.isPending}
-              className="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              className="px-4 py-2 bg-success text-white rounded-lg hover:bg-green-600"
             >
-              {submitTestMutation.isPending ? 'Đang chấm...' : 'Nộp bài'}
+              Nộp bài
             </button>
           )}
         </div>

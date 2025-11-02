@@ -11,10 +11,9 @@ interface Vocab {
 interface TypingModeProps {
   vocab: Vocab;
   onAnswer: (answer: string, correct: boolean) => void;
-  showResult?: boolean;
 }
 
-const TypingMode = ({ vocab, onAnswer, showResult = false }: TypingModeProps) => {
+const TypingMode = ({ vocab, onAnswer }: TypingModeProps) => {
   const [userAnswer, setUserAnswer] = useState('');
   const [isCorrect, setIsCorrect] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -37,8 +36,11 @@ const TypingMode = ({ vocab, onAnswer, showResult = false }: TypingModeProps) =>
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
       <div className="text-center mb-6">
-        <div className="text-3xl font-bold chinese-text mb-2">{vocab.pinyin}</div>
+        {/* Không hiển thị pinyin khi yêu cầu nhập tiếng Trung */}
         <div className="text-xl text-gray-700 dark:text-gray-300">{vocab.vi}</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+          Dịch từ trên sang tiếng Trung
+        </div>
       </div>
 
       <div className="mb-4">

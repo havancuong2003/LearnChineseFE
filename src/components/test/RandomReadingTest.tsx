@@ -19,9 +19,10 @@ interface RandomReadingTestProps {
   unit: ReadingUnit;
   questions: ReadingQuestion[];
   onComplete: (result: { score: number; total: number; correct: number; incorrect: number }) => void;
+  onBack?: () => void;
 }
 
-const RandomReadingTest = ({ unit, questions, onComplete }: RandomReadingTestProps) => {
+const RandomReadingTest = ({ unit, questions, onComplete, onBack }: RandomReadingTestProps) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState(false);
@@ -35,7 +36,7 @@ const RandomReadingTest = ({ unit, questions, onComplete }: RandomReadingTestPro
   };
 
   const handleSubmit = () => {
-    if (answers.length < questions.length) {
+    if (Object.keys(answers).length < questions.length) {
       alert('Vui lòng trả lời tất cả câu hỏi');
       return;
     }
@@ -71,6 +72,14 @@ const RandomReadingTest = ({ unit, questions, onComplete }: RandomReadingTestPro
   if (showResults) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 text-blue-500 hover:text-blue-600 text-sm"
+          >
+            ← Quay lại
+          </button>
+        )}
         <div className={`text-center py-6 rounded-lg mb-6 ${
           score >= 80 ? 'bg-green-100 dark:bg-green-900/30' :
           score >= 60 ? 'bg-yellow-100 dark:bg-yellow-900/30' :
@@ -93,7 +102,17 @@ const RandomReadingTest = ({ unit, questions, onComplete }: RandomReadingTestPro
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-      <h3 className="text-2xl font-bold mb-4">📖 Random Reading Test</h3>
+      <div className="mb-4 flex justify-between items-center">
+        <h3 className="text-2xl font-bold">📖 Random Reading Test</h3>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="text-blue-500 hover:text-blue-600 text-sm"
+          >
+            ← Quay lại
+          </button>
+        )}
+      </div>
       
       <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
         <h4 className="font-semibold mb-2">{unit.unit_title}</h4>

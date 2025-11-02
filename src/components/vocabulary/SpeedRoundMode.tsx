@@ -65,7 +65,7 @@ const SpeedRoundMode = ({ vocab, onAnswer, timeLimit = 2, onTimeUp }: SpeedRound
           {timeLeft}
         </div>
         <div className="text-2xl text-gray-700 dark:text-gray-300 mb-2">{vocab.vi}</div>
-        <div className="text-lg text-gray-500 dark:text-gray-400">Pinyin: {vocab.pinyin}</div>
+        {/* Không hiển thị pinyin khi yêu cầu nhập tiếng Trung */}
       </div>
 
       <div className="mb-4">

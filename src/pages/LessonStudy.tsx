@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import api from '../utils/api';
+import LessonSelector from '../components/lesson/LessonSelector';
 import LessonModeSelector from '../components/lesson/LessonModeSelector';
 import TranslateZhToVi from '../components/lesson/TranslateZhToVi';
 import TranslateViToZh from '../components/lesson/TranslateViToZh';
@@ -14,66 +14,120 @@ import SentenceActions from '../components/lesson/SentenceActions';
 import RelatedSentences from '../components/lesson/RelatedSentences';
 import StatsDisplay from '../components/lesson/StatsDisplay';
 
-interface Lesson {
-  _id: string;
-  title: string;
-  description?: string;
-  source_tag?: string;
-  sentenceCount?: number;
-}
-
 interface Sentence {
   _id: string;
   zh: string;
   vi: string;
   options?: string[];
   correctAnswer?: string;
+  lessonId?: string | { _id: string; title?: string; description?: string; source_tag?: string };
 }
 
 const LessonStudy = () => {
-  const [selectedLesson, setSelectedLesson] = useState<string | null>(null);
   const [studyMode, setStudyMode] = useState<string>('zh-to-vi');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [started, setStarted] = useState(false);
   const [stats, setStats] = useState({ total: 0, correct: 0, incorrect: 0 });
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [selectedLessons, setSelectedLessons] = useState<string[]>([]);
+  const [orderMode, setOrderMode] = useState<'sequential' | 'random'>('sequential');
+  const [allSentences, setAllSentences] = useState<Record<string, Sentence[]>>({}); // lessonId -> sentences
   const [sentencesData, setSentencesData] = useState<Sentence[]>([]);
-  const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
   const [difficultSentences, setDifficultSentences] = useState<Set<string>>(new Set());
   const [reviewList, setReviewList] = useState<Set<string>>(new Set());
 
-  // Load lessons once
-  const { data: lessons } = useQuery({
-    queryKey: ['lessons'],
-    queryFn: async () => {
-      const response = await api.get('/lessons');
-      return response.data as Lesson[];
-    },
-  });
-
-  // Load sentences when lesson selected
+  // Load all sentences and group by lessonId (NO /lessons API call)
   useEffect(() => {
-    const loadSentences = async () => {
-      if (selectedLesson) {
-        try {
-          const response = await api.get(`/lessons/${selectedLesson}`);
-          const data = response.data as { lesson: Lesson; sentences: Sentence[] };
-          setCurrentLesson(data.lesson);
-          setSentencesData(data.sentences);
-          setCurrentIndex(0);
-          setStarted(false);
-          setStats({ total: 0, correct: 0, incorrect: 0 });
-          setStartTime(null);
-        } catch (error) {
-          console.error('Error loading sentences:', error);
+    const loadAllData = async () => {
+      try {
+        // Load all sentences directly from database
+        // Try different endpoints to get sentences
+        let allSentencesList: Sentence[] = [];
+        
+        // Load all sentences from /sentences endpoint (NO /lessons API call)
+        const response = await api.get('/sentences?limit=10000');
+        allSentencesList = response.data.sentences || response.data || [];
+
+        // Group sentences by lessonId
+        const sentencesMap: Record<string, Sentence[]> = {};
+
+        for (const sentence of allSentencesList) {
+          let lessonId: string | undefined;
+          
+          if (typeof sentence.lessonId === 'object' && sentence.lessonId !== null) {
+            // Populated lesson object
+            lessonId = (sentence.lessonId as any)._id || (sentence.lessonId as any).id || String(sentence.lessonId);
+          } else if (sentence.lessonId) {
+            // Direct lessonId string or ObjectId
+            lessonId = String(sentence.lessonId);
+          }
+          
+          if (lessonId) {
+            // Normalize lessonId (remove any extra formatting)
+            const normalizedLessonId = lessonId.toString();
+            if (!sentencesMap[normalizedLessonId]) {
+              sentencesMap[normalizedLessonId] = [];
+            }
+            sentencesMap[normalizedLessonId].push(sentence);
+          }
         }
-      } else {
-        setSentencesData([]);
-        setCurrentLesson(null);
+        
+        console.log('Loaded sentences map:', Object.keys(sentencesMap).length, 'lessons');
+
+        setAllSentences(sentencesMap);
+      } catch (error) {
+        console.error('Error loading data:', error);
       }
     };
-    loadSentences();
-  }, [selectedLesson]);
+
+    loadAllData();
+  }, []);
+
+  // Organize sentences based on selected lessons and order mode
+  useEffect(() => {
+    if (selectedLessons.length === 0) {
+      setSentencesData([]);
+      return;
+    }
+
+    if (Object.keys(allSentences).length === 0) {
+      // Data chưa load xong
+      setSentencesData([]);
+      return;
+    }
+
+    let organizedSentences: Sentence[] = [];
+
+    // Normalize lessonIds và match với allSentences
+    selectedLessons.forEach((lessonId) => {
+      const normalizedId = String(lessonId);
+      const lessonSentences = allSentences[normalizedId] || [];
+      
+      // Nếu không tìm thấy, thử tìm với các format khác
+      if (lessonSentences.length === 0) {
+        // Try finding by matching any key
+        for (const key in allSentences) {
+          if (key.toString() === normalizedId || key.includes(normalizedId) || normalizedId.includes(key)) {
+            organizedSentences = [...organizedSentences, ...allSentences[key]];
+            break;
+          }
+        }
+      } else {
+        organizedSentences = [...organizedSentences, ...lessonSentences];
+      }
+    });
+
+    if (orderMode === 'random') {
+      organizedSentences = organizedSentences.sort(() => 0.5 - Math.random());
+    }
+
+    console.log('Organized sentences:', organizedSentences.length, 'from', selectedLessons.length, 'lessons');
+    setSentencesData(organizedSentences);
+    setCurrentIndex(0);
+    setStarted(false);
+    setStats({ total: 0, correct: 0, incorrect: 0 });
+    setStartTime(null);
+  }, [selectedLessons, orderMode, allSentences]);
 
   const sentences = sentencesData;
   const currentSentence = sentences[currentIndex];
@@ -98,7 +152,7 @@ const LessonStudy = () => {
   };
 
   const handleStart = () => {
-    if (!selectedLesson) {
+    if (selectedLessons.length === 0) {
       alert('Vui lòng chọn bài khóa');
       return;
     }
@@ -139,94 +193,55 @@ const LessonStudy = () => {
     }
   };
 
-  if (!selectedLesson) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold mb-6">Chọn bài khóa để học</h2>
-        
-        {!lessons || lessons.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            Chưa có bài khóa nào. Vui lòng thêm bài khóa từ trang Admin.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {lessons.map((lesson) => (
-              <button
-                key={lesson._id}
-                onClick={() => setSelectedLesson(lesson._id)}
-                className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition text-left border border-gray-200 dark:border-gray-700"
-              >
-                <h3 className="font-semibold text-lg mb-2">{lesson.title}</h3>
-                {lesson.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
-                    {lesson.description}
-                  </p>
-                )}
-                <div className="flex items-center justify-between mt-4">
-                  {lesson.source_tag && (
-                    <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                      {lesson.source_tag}
-                    </span>
-                  )}
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {lesson.sentenceCount || 0} câu
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   if (!started) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-4 flex justify-between items-center">
-          <button
-            onClick={() => {
-              setSelectedLesson(null);
-              setCurrentIndex(0);
-              setSentencesData([]);
-              setCurrentLesson(null);
-            }}
-            className="text-blue-500 hover:text-blue-600"
-          >
-            ← Quay lại danh sách
-          </button>
-          {started && (
-            <StatsDisplay stats={stats} startTime={startTime || undefined} />
-          )}
-        </div>
-
-        <h2 className="text-2xl font-bold mb-6">{currentLesson?.title}</h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Số câu: {sentences.length}
-        </p>
-
+        <h2 className="text-2xl font-bold mb-6">Học Bài Khóa</h2>
+        
+        <LessonSelector
+          selectedLessons={selectedLessons}
+          onLessonsChange={setSelectedLessons}
+          orderMode={orderMode}
+          onOrderModeChange={setOrderMode}
+        />
+        
         <LessonModeSelector selectedMode={studyMode} onModeChange={setStudyMode} />
 
         <div className="text-center">
+          <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            {selectedLessons.length > 0 && (
+              <div>
+                Đã chọn: {selectedLessons.length} bài
+                {sentencesData.length > 0 && ` (${sentencesData.length} câu)`}
+                {sentencesData.length === 0 && ' - Đang tải câu...'}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleStart}
-            disabled={sentences.length === 0}
+            disabled={selectedLessons.length === 0 || sentencesData.length === 0}
             className="px-8 py-3 bg-success text-white rounded-lg font-medium hover:bg-green-600 transition disabled:opacity-50"
           >
             Bắt đầu học
           </button>
+          {selectedLessons.length > 0 && sentencesData.length === 0 && (
+            <div className="mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+              Các bài đã chọn chưa có câu hoặc đang tải dữ liệu...
+            </div>
+          )}
         </div>
       </div>
     );
   }
+
 
   if (!currentSentence) {
     return <div className="text-center py-8">Đang tải...</div>;
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="mb-4">
+      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="mb-4 flex justify-between items-center">
         <button
           onClick={() => {
             setStarted(false);
@@ -236,6 +251,9 @@ const LessonStudy = () => {
         >
           ← Quay lại
         </button>
+        {started && (
+          <StatsDisplay stats={stats} startTime={startTime || undefined} />
+        )}
       </div>
 
       {studyMode === 'zh-to-vi' && (

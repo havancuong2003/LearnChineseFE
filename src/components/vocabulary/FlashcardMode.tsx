@@ -69,9 +69,7 @@ const FlashcardMode = ({ vocab, onAnswer, showFront = 'vi' }: FlashcardModeProps
           <div className="text-2xl font-bold chinese-text text-center p-4 bg-green-100 dark:bg-green-900/30 rounded-lg">
             {backText}
           </div>
-          {vocab.pinyin && showFront === 'vi' && (
-            <div className="text-center mt-2 text-gray-600 dark:text-gray-400">Pinyin: {vocab.pinyin}</div>
-          )}
+          {/* Không hiển thị pinyin khi hiển thị đáp án tiếng Trung */}
         </div>
       )}
 
