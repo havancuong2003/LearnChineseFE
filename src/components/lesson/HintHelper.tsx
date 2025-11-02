@@ -9,7 +9,7 @@ interface HintHelperProps {
   isCorrect: boolean;
 }
 
-const HintHelper = ({ sentence, userAnswer, correctAnswer, isCorrect }: HintHelperProps) => {
+const HintHelper = ({ sentence, correctAnswer, isCorrect }: HintHelperProps) => {
   if (isCorrect) return null;
 
   // Generate hint: show first 1-2 characters or pinyin

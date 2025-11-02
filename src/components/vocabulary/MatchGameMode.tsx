@@ -54,7 +54,6 @@ const MatchGameMode = ({ vocabs, onAnswer }: MatchGameModeProps) => {
       setSelectedChinese(zh);
       if (selectedVietnamese) {
         // Try to match
-        const correct = correctMatches[zh] === selectedVietnamese;
         setMatches({ ...matches, [zh]: selectedVietnamese });
         setVietnameseWords(vietnameseWords.filter((v) => v !== selectedVietnamese));
         setSelectedChinese(null);
@@ -80,7 +79,6 @@ const MatchGameMode = ({ vocabs, onAnswer }: MatchGameModeProps) => {
       setSelectedVietnamese(vi);
       if (selectedChinese) {
         // Try to match
-        const correct = correctMatches[selectedChinese] === vi;
         setMatches({ ...matches, [selectedChinese]: vi });
         setVietnameseWords(vietnameseWords.filter((v) => v !== vi));
         setSelectedChinese(null);

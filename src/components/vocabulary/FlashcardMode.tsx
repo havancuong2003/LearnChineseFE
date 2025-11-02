@@ -16,9 +16,6 @@ interface FlashcardModeProps {
 
 const FlashcardMode = ({ vocab, onAnswer, showFront = 'vi' }: FlashcardModeProps) => {
   const [isFlipped, setIsFlipped] = useState(false);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [isCorrect, setIsCorrect] = useState(false);
-  const [checked, setChecked] = useState(false);
 
   const frontText = showFront === 'vi' ? vocab.vi : vocab.zh;
   const backText = showFront === 'vi' ? vocab.zh : vocab.vi;
@@ -28,18 +25,12 @@ const FlashcardMode = ({ vocab, onAnswer, showFront = 'vi' }: FlashcardModeProps
   const handleFlip = () => {
     setIsFlipped(!isFlipped);
     if (!isFlipped) {
-      setUserAnswer(backText);
-      setIsCorrect(true);
-      setChecked(true);
       onAnswer(backText, true);
     }
   };
 
   const handleNext = () => {
     setIsFlipped(false);
-    setUserAnswer('');
-    setIsCorrect(false);
-    setChecked(false);
     onAnswer('', false);
   };
 

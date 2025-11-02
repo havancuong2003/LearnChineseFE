@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import api from '../../utils/api';
 
@@ -86,7 +86,7 @@ const UnitSelector = ({ selectedUnits, onUnitsChange, orderMode, onOrderModeChan
                 type="radio"
                 value="sequential"
                 checked={orderMode === 'sequential'}
-                onChange={(e) => onOrderModeChange('sequential')}
+                onChange={() => onOrderModeChange('sequential')}
                 className="w-4 h-4"
               />
               <span>Lần lượt từng unit</span>
@@ -96,7 +96,7 @@ const UnitSelector = ({ selectedUnits, onUnitsChange, orderMode, onOrderModeChan
                 type="radio"
                 value="random"
                 checked={orderMode === 'random'}
-                onChange={(e) => onOrderModeChange('random')}
+                onChange={() => onOrderModeChange('random')}
                 className="w-4 h-4"
               />
               <span>Random tất cả</span>
