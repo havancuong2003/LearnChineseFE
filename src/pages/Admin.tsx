@@ -6,7 +6,7 @@ import { Navigate } from 'react-router-dom';
 
 const Admin = () => {
   const { user } = useAuth();
-  const [fileType, setFileType] = useState<'vocabulary' | 'reading-units'>('vocabulary');
+  const [fileType, setFileType] = useState<'vocabulary' | 'reading-units' | 'sentences'>('vocabulary');
   const [mode, setMode] = useState<'overwrite' | 'append'>('append');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,12 +72,20 @@ const Admin = () => {
             <label className="block text-sm font-medium mb-2">Loại file</label>
             <select
               value={fileType}
-              onChange={(e) => setFileType(e.target.value as 'vocabulary' | 'reading-units')}
+              onChange={(e) => setFileType(e.target.value as 'vocabulary' | 'reading-units' | 'sentences')}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="vocabulary">Vocabulary.xlsx</option>
               <option value="reading-units">ReadingUnits.xlsx</option>
+              <option value="sentences">Sentences.xlsx</option>
             </select>
+            {fileType === 'sentences' && (
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                Format: Cần có cột <strong>中文</strong> (hoặc <strong>zh</strong>) và <strong>越南语</strong> (hoặc <strong>vi</strong>). 
+                Cần có ít nhất 1 trong: <strong>lesson_title</strong>, <strong>source_tag</strong>, hoặc <strong>lessonId</strong>.
+                Tùy chọn: <strong>options</strong>, <strong>correctAnswer</strong>. Xem file CHATGPT_PROMPT_SENTENCE_IMPORT.md để biết thêm chi tiết.
+              </p>
+            )}
           </div>
 
           <div className="mb-4">

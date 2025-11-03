@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-
+import api from '../utils/api';
 interface User {
   id: string;
   username: string;
@@ -57,12 +57,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await axios.post('https://learnchinesebe.onrender.com/api/auth/login', { username, password });
+      const response = await api.post('/auth/login', { username, password });
       const { token: newToken, user: userData } = response.data;
       setToken(newToken);
       setUser(userData);
       localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       navigate('/');
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Đăng nhập thất bại');
@@ -71,12 +71,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const register = async (username: string, password: string) => {
     try {
-      const response = await axios.post('/api/auth/register', { username, password });
+      const response = await api.post('/auth/register', { username, password });
       const { token: newToken, user: userData } = response.data;
       setToken(newToken);
       setUser(userData);
       localStorage.setItem('token', newToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
       navigate('/');
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Đăng ký thất bại');
@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.common['Authorization'];
     navigate('/login');
   };
 
